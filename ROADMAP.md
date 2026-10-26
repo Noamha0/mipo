@@ -29,7 +29,8 @@
 - `DEV_SKIP_AUTH = true` ב-`src/features/auth/useSession.ts`: עוקף התחברות ב-dev בלבד, ושאילתות שדורשות
   משתמש אמיתי נכשלות בו. להחזיר ל-`false` כשבודקים התחברות.
 - תמונות הדמו אקראיות (picsum) ולא תואמות לתחום.
-- אין git ואין פריסה ל-MIPO. (`beauty-booking` נמצא ב-GitHub `Noamha0/torli` וב-Vercel `torli-dun.vercel.app`.)
+- **פריסה:** Vercel, פרויקט `mipo` תחת `noamhadarys-projects`. production בכתובת https://mipo-sigma.vercel.app. הפריסה ידנית (`vercel deploy --prod`), כי אין חיבור Git אוטומטי.
+- **git:** ענף `main` מקומי, עדיין בלי remote ובלי ריפו ב-GitHub.
 
 ## אבני דרך הבאות
 | # | אבן דרך | מה |
