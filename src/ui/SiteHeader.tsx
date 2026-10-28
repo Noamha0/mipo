@@ -10,6 +10,7 @@ export default function SiteHeader() {
       <Brand />
       <nav className="site-nav" aria-label="ניווט ראשי">
         <Link to="/search">כל השירותים</Link>
+        <Link to="/me">התורים שלי</Link>
         <a href="/#how">איך זה עובד</a>
         <Link to="/biz">לעסקים</Link>
       </nav>

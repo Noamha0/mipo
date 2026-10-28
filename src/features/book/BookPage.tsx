@@ -9,6 +9,8 @@ import SiteHeader from '../../ui/SiteHeader';
 import PhoneLogin from '../auth/PhoneLogin';
 import { useSession } from '../auth/useSession';
 import Confirm from './Confirm';
+import FavButton from '../me/FavButton';
+import { useFavorites } from '../me/useFavorites';
 import { dayKey, dayLabel, relativeDay, shortDate, timeLabel } from './datetime';
 
 type Step = 'browse' | 'confirm' | 'done';
@@ -20,6 +22,7 @@ export default function BookPage() {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const { session } = useSession();
+  const { isFavorite, toggle: toggleFavorite } = useFavorites();
 
   const [business, setBusiness] = useState<Business | null | undefined>(undefined);
   const [services, setServices] = useState<Service[]>([]);
@@ -181,7 +184,10 @@ export default function BookPage() {
 
         <section className="stack-sm">
           <div className="row between" style={{ alignItems: 'flex-start' }}>
-            <h1 style={{ fontSize: '1.6rem' }}>{business.name}</h1>
+            <div className="row" style={{ gap: '0.25rem', minWidth: 0 }}>
+              <h1 style={{ fontSize: '1.6rem' }}>{business.name}</h1>
+              <FavButton on={isFavorite(business.id)} name={business.name} onClick={() => toggleFavorite(business.id)} />
+            </div>
             {business.rating != null && (
               <span className="rating" style={{ fontSize: '1rem', marginTop: '0.3rem' }}>
                 <Icon name="star" size={18} fill="currentColor" />

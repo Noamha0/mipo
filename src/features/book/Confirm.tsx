@@ -4,6 +4,7 @@ import { formatDuration, formatPrice } from '../../lib/format';
 import { dayLabel, timeLabel } from './datetime';
 import type { Business, Service } from '../../lib/types';
 import Icon from '../../ui/Icon';
+import type { AltPreference } from '../me/api';
 
 interface Props {
   business: Business;
@@ -27,6 +28,7 @@ const ERRORS: Record<string, string> = {
 /** סיכום ואישור. ההזמנה עצמה דרך create_booking RPC (דורש התחברות אמיתית). */
 export default function Confirm({ business, services, slotStart, totalDuration, totalPrice, onBack, onBooked }: Props) {
   const [name, setName] = useState('');
+  const [alt, setAlt] = useState<AltPreference>('both');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +41,7 @@ export default function Confirm({ business, services, slotStart, totalDuration, 
       p_service_ids: services.map((s) => s.id),
       p_start: slotStart,
       p_name: name.trim() || null,
+      p_alt_preference: alt,
     });
     setBusy(false);
     if (error) {
@@ -75,6 +78,16 @@ export default function Confirm({ business, services, slotStart, totalDuration, 
       <label className="field">
         השם שלך
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="איך לקרוא לך?" autoComplete="name" />
+      </label>
+
+      <label className="field">
+        אם העסק לא יוכל לאשר, מה להציע לך?
+        <select value={alt} onChange={(e) => setAlt(e.target.value as AltPreference)}>
+          <option value="both">מועד אחר כאן, או עסק אחר באותו תחום</option>
+          <option value="same_business">רק מועד אחר אצל העסק הזה</option>
+          <option value="other_business">עסק אחר באותו תחום</option>
+        </select>
+        <small>אפשר לשנות בכל רגע ב"התורים שלי"</small>
       </label>
 
       <button className="btn block" disabled={busy}>

@@ -4,6 +4,8 @@ import { nextSlots, type Listing } from '../lib/discovery';
 import { formatPrice } from '../lib/format';
 import { relativeDay, timeLabel } from '../features/book/datetime';
 import Icon from './Icon';
+import FavButton from '../features/me/FavButton';
+import { useFavorites } from '../features/me/useFavorites';
 
 /**
  * כרטיס עסק. mini — לגלילה האופקית ("זמינים עכשיו"); wide — לרשימת התוצאות,
@@ -12,6 +14,7 @@ import Icon from './Icon';
 export default function BizCard({ listing, variant = 'mini' }: { listing: Listing; variant?: 'mini' | 'wide' }) {
   const { business: b, categoryNames, minPrice } = listing;
   const [slots, setSlots] = useState<string[] | null>(null);
+  const { isFavorite, toggle } = useFavorites();
 
   useEffect(() => {
     let alive = true;
@@ -26,13 +29,16 @@ export default function BizCard({ listing, variant = 'mini' }: { listing: Listin
 
   return (
     <article className={`biz-card ${variant}`}>
-      <Link to={url} className="media" style={media} aria-label={b.name}>
-        {slots && slots.length > 0 && (
-          <span className="badge-on-image">
-            <span className="live">{today ? 'זמין היום' : 'זמין מחר'}</span>
-          </span>
-        )}
-      </Link>
+      <div className="media-wrap">
+        <Link to={url} className="media" style={media} aria-label={b.name}>
+          {slots && slots.length > 0 && (
+            <span className="badge-on-image">
+              <span className="live">{today ? 'זמין היום' : 'זמין מחר'}</span>
+            </span>
+          )}
+        </Link>
+        <FavButton className="fav" on={isFavorite(b.id)} name={b.name} onClick={() => toggle(b.id)} />
+      </div>
       <div className="body">
         <div className="row between" style={{ gap: '0.5rem' }}>
           <Link to={url} className="name" style={{ textDecoration: 'none' }}>{b.name}</Link>

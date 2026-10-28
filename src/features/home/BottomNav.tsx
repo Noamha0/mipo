@@ -6,11 +6,11 @@ type Tab = 'home' | 'search' | 'appointments' | 'biz';
 const items: { key: Tab; label: string; to: string; icon: IconName }[] = [
   { key: 'home', label: 'בית', to: '/', icon: 'home' },
   { key: 'search', label: 'חיפוש', to: '/search', icon: 'search' },
-  { key: 'appointments', label: 'התורים שלי', to: '/search', icon: 'calendar' },
+  { key: 'appointments', label: 'התורים שלי', to: '/me', icon: 'calendar' },
   { key: 'biz', label: 'לעסקים', to: '/biz', icon: 'studio' },
 ];
 
-/** ניווט תחתון צף — מובייל בלבד (בדסקטופ הניווט בכותרת). "התורים שלי" נבנה באבן דרך 4. */
+/** ניווט תחתון צף — מובייל בלבד (בדסקטופ הניווט בכותרת). */
 export default function BottomNav({ active }: { active: Tab }) {
   const nav = useNavigate();
   return (

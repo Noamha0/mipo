@@ -354,6 +354,45 @@ test('business calendar: names, phones and reliability for the team only', async
   assert.equal(day.find((r) => r.id === id).status, 'expired');
 });
 
+test('my bookings: own only, address revealed after confirmation, allowed actions', async () => {
+  const mine = await as(U.custD, `select * from my_bookings()`);
+  assert.ok(mine.length >= 3);
+  const ownIds = (await as(U.custD, `select id from bookings`)).map((r) => r.id).sort();
+  assert.deepEqual(mine.map((r) => r.id).sort(), ownIds);
+  assert.ok(mine.every((r) => r.business_name === 'הציפורניים של א'));
+
+  // עסק א הוא עסק מהבית: הכתובת רק בתור מאושר
+  const confirmed = mine.find((r) => r.status === 'confirmed');
+  assert.equal(confirmed.street, 'הנרקיסים');
+  assert.equal(confirmed.house_number, '12');
+  assert.equal(confirmed.can_cancel, true);
+  assert.equal(confirmed.cancel_is_late, false); // יומיים קדימה, חלון של 24 שעות
+  const rejected = mine.find((r) => r.status === 'rejected');
+  assert.equal(rejected.street, null);
+  assert.equal(rejected.can_cancel, false);
+  assert.equal(mine.find((r) => r.status === 'expired').can_cancel, false);
+
+  assert.equal((await as(U.ownerB, `select * from my_bookings()`)).length, 0); // אין רשומת לקוחה
+  await fails(as(null, `select * from my_bookings()`), 'permission denied');
+});
+
+test('favorites: toggle, private per customer, creates the customer record', async () => {
+  const toggle = (uid) => as(uid, `select toggle_favorite($1) as on`, [bizA]).then((r) => r[0].on);
+  assert.equal(await toggle(U.custC), true);
+  assert.deepEqual((await as(U.custC, `select business_id from favorites`)).map((r) => r.business_id), [bizA]);
+  assert.equal((await as(U.custD, `select * from favorites`)).length, 0);
+  assert.equal(await toggle(U.custC), false);
+  assert.equal((await as(U.custC, `select * from favorites`)).length, 0);
+
+  // למשתמש בלי רשומת לקוחה נוצרת אחת
+  assert.equal(await toggle(U.ownerB), true);
+  assert.equal((await su(`select count(*)::int n from customers where phone = '972500000002'`))[0].n, 1);
+  // הוספה ישירה חסומה, גם לעצמך — רק דרך toggle_favorite
+  await fails(as(U.custC, `insert into favorites (customer_id, business_id) select id, $1 from customers`, [bizA]),
+    'row-level security');
+  await fails(as(null, `select toggle_favorite($1)`, [bizA]), 'permission denied');
+});
+
 test('suspended business disappears', async () => {
   await su(`update businesses set status = 'suspended' where id = $1`, [bizB]);
   assert.deepEqual((await as(null, `select id from businesses`)).map((r) => r.id), [bizA]);
