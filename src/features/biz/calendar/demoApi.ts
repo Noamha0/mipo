@@ -38,7 +38,7 @@ async function seed(businessId: string): Promise<Store> {
       total_price: s?.price ?? null, approval_deadline: null, late_cancel: false,
       no_show_disputed_at: null, no_show_reaffirmed_at: null, created_at: new Date(now - 86_400_000).toISOString(),
       customer_name: name, customer_phone: phone, customer_notes: null, services: s?.name ?? 'שירות',
-      visits: 0, attended: 0, no_shows: 0, late_cancels: 0, score: null, ...rel, ...extra,
+      visits: 0, attended: 0, no_shows: 0, late_cancels: 0, score: null, blocked_here: false, block_reason: null, ...rel, ...extra,
     });
   };
 
@@ -112,11 +112,17 @@ export function createDemoApi(businessId: string): CalendarApi {
         no_show_disputed_at: null, no_show_reaffirmed_at: null, created_at: new Date().toISOString(),
         customer_name: name || null, customer_phone: digits, customer_notes: null,
         services: chosen.map((x) => x.name).join(' + '), visits: 0, attended: 0, no_shows: 0, late_cancels: 0, score: null,
+        blocked_here: false, block_reason: null,
       });
       await changed();
     },
     async addBlock(from, to, reason) {
       (await store()).blocks.push({ id: crypto.randomUUID(), starts_at: from, ends_at: to, reason: reason.trim() || null });
+      await changed();
+    },
+    async setCustomerBlock(customerId, blocked, reason) {
+      (await store()).bookings.filter((b) => b.customer_id === customerId)
+        .forEach((b) => Object.assign(b, { blocked_here: blocked, block_reason: blocked ? reason.trim() || null : null }));
       await changed();
     },
     async removeBlock(id) {

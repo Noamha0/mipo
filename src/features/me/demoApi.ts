@@ -3,9 +3,9 @@
 import { supabase } from '../../lib/supabase';
 import type { Business } from '../../lib/types';
 import { addDays, todayKey, zonedIso } from '../book/datetime';
-import type { MeApi, MyBooking, Profile } from './api';
+import type { Consents, MeApi, MyBooking, Profile } from './api';
 
-let store: Promise<{ bookings: MyBooking[]; businesses: Business[]; favs: Set<string>; profile: Profile }> | null = null;
+let store: Promise<{ bookings: MyBooking[]; businesses: Business[]; favs: Set<string>; profile: Profile; consents: Consents }> | null = null;
 
 async function seed() {
   const { data } = await supabase.from('businesses').select('*').like('slug', 'mipo-demo-%').limit(6);
@@ -36,7 +36,8 @@ async function seed() {
   ];
   return {
     bookings, businesses: biz, favs: new Set(biz.slice(0, 2).map((b) => b.id)),
-    profile: { name: 'נועה', phone: '972501234567', alt_preference: 'both' as const, attended: 6, no_shows: 1, late_cancels: 1, score: 80 },
+    profile: { name: 'נועה', phone: '972501234567', email: null, blocked_at: null, alt_preference: 'both' as const, attended: 6, no_shows: 1, late_cancels: 1, score: 80 },
+    consents: {} as Consents,
   };
 }
 
@@ -71,7 +72,14 @@ export const demoMeApi: MeApi = {
     return true;
   },
   profile: async () => ({ ...(await s()).profile }),
-  async saveProfile({ name, alt_preference }) {
-    Object.assign((await s()).profile, { name: name.trim() || null, alt_preference });
+  async saveProfile({ name, email, alt_preference }) {
+    if (email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) throw new Error('customers_email_check');
+    Object.assign((await s()).profile, { name: name.trim() || null, email: email.trim() || null, alt_preference });
+  },
+  consents: async () => ({ ...(await s()).consents }),
+  async setConsent(channel, granted) {
+    const st = await s();
+    if (channel === 'email' && granted && !st.profile.email) throw new Error('email_required');
+    st.consents[channel] = { granted, updated_at: new Date().toISOString() };
   },
 };

@@ -10,6 +10,8 @@ export default function BookingSheet({ b, api, now, onClose }: { b: CalBooking; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [reason, setReason] = useState('');
 
   const started = new Date(b.starts_at).getTime() <= now;
   const pending = b.status === 'pending';
@@ -107,6 +109,34 @@ export default function BookingSheet({ b, api, now, onClose }: { b: CalBooking; 
             ביטול התור
           </button>
         )
+      )}
+
+      <hr className="divider" />
+      {b.blocked_here ? (
+        <div className="stack-sm">
+          <p className="notice warn"><Icon name="ban" /><span>חסומה אצלך: לא יכולה לקבוע כאן תורים דרך האתר.{b.block_reason && ` הסיבה שרשמת: ${b.block_reason}`}</span></p>
+          <button className="btn ghost small" style={{ alignSelf: 'flex-start' }} disabled={busy}
+            onClick={() => run(() => api.setCustomerBlock(b.customer_id, false, ''))}>ביטול החסימה</button>
+        </div>
+      ) : blocking ? (
+        <div className="stack-sm">
+          <p className="muted">
+            היא לא תוכל לקבוע אצלך תורים דרך האתר (תראה הודעה כללית, בלי פירוט). תורים קיימים לא מתבטלים, ואת עדיין יכולה לקלוט לה תור ידנית.
+            אפשר לבטל את החסימה בכל רגע.
+          </p>
+          <label className="field">
+            סיבה <small>רק את רואה אותה</small>
+            <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="למשל: לא הגיעה כמה פעמים" />
+          </label>
+          <div className="row" style={{ gap: '0.6rem' }}>
+            <button className="btn danger small" style={{ flex: 1 }} disabled={busy} onClick={() => run(() => api.setCustomerBlock(b.customer_id, true, reason))}>חסימה</button>
+            <button className="btn secondary small" style={{ flex: 1 }} disabled={busy} onClick={() => setBlocking(false)}>ביטול</button>
+          </div>
+        </div>
+      ) : (
+        <button className="btn ghost small" style={{ alignSelf: 'flex-start', color: 'var(--muted)' }} onClick={() => setBlocking(true)}>
+          <Icon name="ban" size={18} />חסימת הלקוחה אצלי
+        </button>
       )}
 
       {error && <p className="error" role="alert">{error}</p>}

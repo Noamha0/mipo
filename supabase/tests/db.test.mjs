@@ -393,6 +393,56 @@ test('favorites: toggle, private per customer, creates the customer record', asy
   await fails(as(null, `select toggle_favorite($1)`, [bizA]), 'permission denied');
 });
 
+test('marketing consent: explicit per channel, history kept, private', async () => {
+  const state = async (uid) => Object.fromEntries((await as(uid, `select * from my_marketing_consents()`)).map((r) => [r.channel, r.granted]));
+  assert.deepEqual(await state(U.custD), {}); // ברירת מחדל: אין הסכמה
+  await as(U.custD, `select set_marketing_consent('sms', true, 'profile')`);
+  await as(U.custD, `select set_marketing_consent('sms', false, 'profile')`);
+  await as(U.custD, `select set_marketing_consent('whatsapp', true, 'booking')`);
+  assert.deepEqual(await state(U.custD), { sms: false, whatsapp: true });
+  assert.equal((await as(U.custD, `select * from marketing_consents`)).length, 3); // כל השינויים נשמרים
+  assert.equal((await as(U.custC, `select * from marketing_consents`)).length, 0);
+
+  // מייל: רשות, בפורמט תקין, ונדרש לפני הסכמה לדיוור במייל
+  await fails(as(U.custD, `select set_marketing_consent('email', true)`), 'email_required');
+  await fails(as(U.custD, `update customers set email = 'not-an-email'`), 'customers_email_check');
+  await as(U.custD, `update customers set email = 'dana@example.com'`);
+  await as(U.custD, `select set_marketing_consent('email', true)`);
+  assert.equal((await state(U.custD)).email, true);
+  await fails(as(U.custD, `insert into marketing_consents (customer_id, channel, granted, source)
+    select id, 'sms', true, 'x' from customers`), 'row-level security');
+  await fails(as(U.custD, `update customers set blocked_at = null`), 'permission denied');
+});
+
+test('business block: only for its own customers, enforced on booking', async () => {
+  const dId = (await as(U.custD, `select id from customers`))[0].id;
+  await fails(as(U.ownerB, `select set_business_block($1, $2, true)`, [bizA, dId]), 'not_allowed');
+  await as(U.ownerA, `select set_business_block($1, $2, true, 'לא הגיעה שלוש פעמים')`, [bizA, dId]);
+
+  await fails(book(U.custD, bizA, [gel], await at(4, '09:00')), 'blocked_by_business');
+  const row = (await as(U.ownerA, `select blocked_here, block_reason from business_calendar($1, $2, $3)
+    where customer_id = $4 limit 1`, [bizA, await at(D2, '00:00'), await at(D2 + 1, '00:00'), dId]))[0];
+  assert.deepEqual([row.blocked_here, row.block_reason], [true, 'לא הגיעה שלוש פעמים']);
+  assert.equal((await as(U.custD, `select * from business_blocked_customers`)).length, 0); // הלקוחה לא רואה
+  assert.ok((await su(`select 1 from audit_log where action = 'customer_blocked' and business_id = $1`, [bizA])).length);
+  // קליטה ידנית של העסק עצמו עדיין מותרת
+  await as(U.ownerA, `select * from create_manual_booking($1, '054-0000004', null, $2::uuid[], $3)`, [bizA, [gel], await at(4, '11:00')]);
+
+  await as(U.ownerA, `select set_business_block($1, $2, false)`, [bizA, dId]);
+  assert.equal((await book(U.custD, bizA, [gel], await at(4, '13:00'))).business_id, bizA);
+});
+
+test('platform block: admins only, by phone, blocks booking everywhere', async () => {
+  await fails(as(U.ownerA, `select * from admin_set_customer_block('054-0000003', true, 'הטרדה')`), 'not_allowed');
+  await su(`insert into platform_admins (user_id) values ($1)`, [U.custE]);
+  await as(U.custE, `select * from admin_set_customer_block('054-0000003', true, 'הטרדה')`);
+  await fails(book(U.custC, bizA, [gel], await at(4, '15:00')), 'customer_blocked');
+  await fails(as(U.custE, `select * from admin_set_customer_block('050-1111111', true)`), 'customer_not_found');
+  await as(U.custE, `select * from admin_set_customer_block('054-0000003', false)`);
+  assert.equal((await book(U.custC, bizA, [gel], await at(4, '15:00'))).business_id, bizA);
+  assert.equal((await as(U.custC, `select * from platform_admins`)).length, 0);
+});
+
 test('suspended business disappears', async () => {
   await su(`update businesses set status = 'suspended' where id = $1`, [bizB]);
   assert.deepEqual((await as(null, `select id from businesses`)).map((r) => r.id), [bizA]);

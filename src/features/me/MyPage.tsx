@@ -11,7 +11,7 @@ import { useSession } from '../auth/useSession';
 import { timeLabel } from '../book/datetime';
 import { useNow, whenLabel } from '../biz/calendar/parts';
 import BottomNav from '../home/BottomNav';
-import { errorText, meApi, type AltPreference, type MyBooking, type Profile } from './api';
+import { errorText, meApi, type AltPreference, type Channel, type Consents, type MyBooking, type Profile } from './api';
 import FavButton from './FavButton';
 import { useFavorites } from './useFavorites';
 
@@ -42,6 +42,7 @@ export default function MyPage() {
                 </button>
               ))}
             </div>
+            <BlockedNotice />
             {tab === 'bookings' && <Bookings />}
             {tab === 'favorites' && <Favorites />}
             {tab === 'profile' && <ProfileTab />}
@@ -51,6 +52,18 @@ export default function MyPage() {
       <SiteFooter />
       <BottomNav active="appointments" />
     </div>
+  );
+}
+
+// חשבון שנחסם ברמת המערכת (0005): אפשר לראות את התורים, אי אפשר לקבוע חדשים
+function BlockedNotice() {
+  const [blocked, setBlocked] = useState(false);
+  useEffect(() => { meApi.profile().then((p) => setBlocked(Boolean(p.blocked_at))).catch(() => {}); }, []);
+  if (!blocked) return null;
+  return (
+    <p className="notice warn" role="alert">
+      <span>החשבון שלך מוגבל ואי אפשר לקבוע דרכו תורים חדשים. אם לדעתך זו טעות, <Link to="/contact" style={{ color: 'var(--accent)' }}>כתבו לנו</Link>.</span>
+    </p>
   );
 }
 
@@ -230,6 +243,8 @@ function Favorites() {
 
 // ---------- פרופיל ----------
 
+const CHANNELS: [Channel, string][] = [['sms', 'SMS'], ['whatsapp', 'וואטסאפ'], ['email', 'מייל']];
+
 const ALT: [AltPreference, string, string][] = [
   ['both', 'גם וגם', 'מועד אחר אצל אותו עסק, או עסק אחר באותו תחום'],
   ['same_business', 'רק אצל אותו עסק', 'נציע רק מועדים אחרים אצלו'],
@@ -239,12 +254,19 @@ const ALT: [AltPreference, string, string][] = [
 function ProfileTab() {
   const [p, setP] = useState<Profile | null>(null);
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [alt, setAlt] = useState<AltPreference>('both');
+  const [saved, setSaved] = useState<Consents>({});
+  const [consent, setConsent] = useState<Record<Channel, boolean>>({ sms: false, whatsapp: false, email: false });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    meApi.profile().then((x) => { setP(x); setName(x.name ?? ''); setAlt(x.alt_preference); }).catch(() => setMsg({ ok: false, text: 'לא הצלחנו לטעון את הפרופיל.' }));
+    Promise.all([meApi.profile(), meApi.consents()]).then(([x, c]) => {
+      setP(x); setName(x.name ?? ''); setEmail(x.email ?? ''); setAlt(x.alt_preference);
+      setSaved(c);
+      setConsent({ sms: Boolean(c.sms?.granted), whatsapp: Boolean(c.whatsapp?.granted), email: Boolean(c.email?.granted) });
+    }).catch(() => setMsg({ ok: false, text: 'לא הצלחנו לטעון את הפרופיל.' }));
   }, []);
 
   async function save(e: React.FormEvent) {
@@ -252,7 +274,12 @@ function ProfileTab() {
     setBusy(true);
     setMsg(null);
     try {
-      await meApi.saveProfile({ name, alt_preference: alt });
+      await meApi.saveProfile({ name, email, alt_preference: alt });
+      // רק ערוצים שהשתנו נרשמים ביומן ההסכמות
+      for (const ch of CHANNELS.map(([c]) => c)) {
+        if (consent[ch] !== Boolean(saved[ch]?.granted)) await meApi.setConsent(ch, consent[ch], 'profile');
+      }
+      setSaved(await meApi.consents());
       setMsg({ ok: true, text: 'נשמר' });
     } catch (err) {
       setMsg({ ok: false, text: errorText(err) });
@@ -286,6 +313,10 @@ function ProfileTab() {
           <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="איך לקרוא לך?" />
           {p.phone && <small>טלפון: <span className="ltr">{displayPhone(p.phone)}</span></small>}
         </label>
+        <label className="field">
+          מייל <small>רשות</small>
+          <input type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="name@example.com" />
+        </label>
         <fieldset className="field plain">
           <legend>אם העסק לא יוכל לאשר תור, מה להציע לך?</legend>
           <div className="stack-sm">
@@ -295,6 +326,29 @@ function ProfileTab() {
                 <span><b>{title}</b><span className="muted">{desc}</span></span>
               </label>
             ))}
+          </div>
+        </fieldset>
+        <fieldset className="field plain">
+          <legend>עדכונים ומבצעים מעסקים ומ-MIPO</legend>
+          <small style={{ marginBottom: '0.4rem' }}>רק אם תרצו. הודעות על התורים עצמם (אישור, תזכורת) נשלחות בכל מקרה. אפשר לבטל בכל רגע.</small>
+          <div className="stack-sm">
+            {CHANNELS.map(([ch, label]) => {
+              const disabled = ch === 'email' && !email.trim();
+              return (
+                <label key={ch} className="row between" style={{ minHeight: 44, opacity: disabled ? 0.55 : 1 }}>
+                  <span>
+                    {label}
+                    {saved[ch]?.granted && <small className="muted"> · אישרת ב-{new Date(saved[ch]!.updated_at).toLocaleDateString('he-IL')}</small>}
+                    {disabled && <small className="muted"> · צריך מייל</small>}
+                  </span>
+                  <span className="switch">
+                    <input type="checkbox" checked={consent[ch] && !disabled} disabled={disabled}
+                      onChange={(e) => setConsent({ ...consent, [ch]: e.target.checked })} aria-label={`עדכונים ב${label}`} />
+                    <span />
+                  </span>
+                </label>
+              );
+            })}
           </div>
         </fieldset>
         <button className="btn block" disabled={busy}>{busy ? 'שומרת…' : 'שמירה'}</button>

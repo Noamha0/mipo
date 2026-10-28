@@ -5,6 +5,8 @@ import type { BookingStatus } from '../biz/calendar/api';
 import { demoMeApi } from './demoApi';
 
 export type AltPreference = 'same_business' | 'other_business' | 'both';
+export type Channel = 'sms' | 'whatsapp' | 'email';
+export type Consents = Partial<Record<Channel, { granted: boolean; updated_at: string }>>;
 
 /** שורה מ-my_bookings (0004) */
 export interface MyBooking {
@@ -36,6 +38,9 @@ export interface MyBooking {
 export interface Profile {
   name: string | null;
   phone: string | null;
+  email: string | null;
+  /** חסימה מערכתית (0005): אי אפשר לקבוע תורים חדשים */
+  blocked_at: string | null;
   alt_preference: AltPreference;
   attended: number;
   no_shows: number;
@@ -52,7 +57,10 @@ export interface MeApi {
   /** מחזיר true אם העסק במועדפים אחרי הלחיצה */
   toggleFavorite(businessId: string): Promise<boolean>;
   profile(): Promise<Profile>;
-  saveProfile(p: { name: string; alt_preference: AltPreference }): Promise<void>;
+  saveProfile(p: { name: string; email: string; alt_preference: AltPreference }): Promise<void>;
+  consents(): Promise<Consents>;
+  /** source: מאיזה מסך ניתנה ההסכמה — נשמר ביומן (חוק התקשורת 30א) */
+  setConsent(channel: Channel, granted: boolean, source: string): Promise<void>;
 }
 
 const ERRORS: Record<string, string> = {
@@ -60,6 +68,8 @@ const ERRORS: Record<string, string> = {
   not_disputable: 'כבר נשלח ערעור על התור הזה.',
   authentication_required: 'צריך להתחבר כדי לעשות את זה.',
   phone_required: 'חסר מספר טלפון מאומת לחשבון.',
+  customers_email_check: 'כתובת המייל לא תקינה.',
+  email_required: 'כדי לקבל עדכונים במייל צריך קודם לשמור כתובת מייל.',
 };
 
 export function errorText(e: unknown): string {
@@ -88,16 +98,22 @@ const supabaseMeApi: MeApi = {
   },
   toggleFavorite: (businessId) => call(supabase.rpc('toggle_favorite', { p_business_id: businessId })).then((on) => Boolean(on)),
   async profile() {
-    const c = await call(supabase.from('customers').select('id, name, phone, alt_preference').maybeSingle());
-    if (!c) return { name: null, phone: null, alt_preference: 'both', attended: 0, no_shows: 0, late_cancels: 0, score: null };
+    const c = await call(supabase.from('customers').select('id, name, phone, email, blocked_at, alt_preference').maybeSingle());
+    if (!c) return { name: null, phone: null, email: null, blocked_at: null, alt_preference: 'both', attended: 0, no_shows: 0, late_cancels: 0, score: null };
     const r = await call(supabase.rpc('customer_reliability', { p_customer_id: c.id }).single());
     return { ...(c as Omit<Profile, 'attended' | 'no_shows' | 'late_cancels' | 'score'>), ...(r as Pick<Profile, 'attended' | 'no_shows' | 'late_cancels' | 'score'>) };
   },
-  async saveProfile({ name, alt_preference }) {
+  async saveProfile({ name, email, alt_preference }) {
     // claim_customer יוצרת את רשומת הלקוחה אם עוד אין (ומעדכנת את השם)
     await call(supabase.rpc('claim_customer', { p_name: name.trim() || null }));
-    await call(supabase.from('customers').update({ alt_preference }).not('id', 'is', null));
+    await call(supabase.from('customers').update({ alt_preference, email: email.trim() || null }).not('id', 'is', null));
   },
+  async consents() {
+    const rows = (await call(supabase.rpc('my_marketing_consents'))) as { channel: Channel; granted: boolean; updated_at: string }[] | null;
+    return Object.fromEntries((rows ?? []).map((r) => [r.channel, { granted: r.granted, updated_at: r.updated_at }]));
+  },
+  setConsent: (channel, granted, source) =>
+    call(supabase.rpc('set_marketing_consent', { p_channel: channel, p_granted: granted, p_source: source })).then(() => undefined),
 };
 
 export const meApi: MeApi = DEV_BYPASS ? demoMeApi : supabaseMeApi;

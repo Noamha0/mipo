@@ -30,6 +30,9 @@ export interface CalBooking {
   no_shows: number;
   late_cancels: number;
   score: number | null;
+  /** חסומה אצל העסק הזה (0005) */
+  blocked_here: boolean;
+  block_reason: string | null;
 }
 
 export interface CalBlock {
@@ -56,6 +59,8 @@ export interface CalendarApi {
   createManual(input: ManualBookingInput): Promise<void>;
   addBlock(from: string, to: string, reason: string): Promise<void>;
   removeBlock(id: string): Promise<void>;
+  /** חסימת לקוחה אצל העסק בלבד: לא תוכל לקבוע כאן תורים דרך האתר */
+  setCustomerBlock(customerId: string, blocked: boolean, reason: string): Promise<void>;
   /** מחזיר פונקציית ביטול. isNew = נכנסה הזמנה חדשה (לא שינוי שלנו). */
   subscribe(onChange: (isNew: boolean) => void): () => void;
 }
@@ -137,6 +142,9 @@ function createSupabaseApi(businessId: string): CalendarApi {
       }));
     },
     removeBlock: (id) => write(async () => supabase.from('calendar_exceptions').delete().eq('id', id)),
+    setCustomerBlock: (customerId, blocked, reason) => mutate('set_business_block', {
+      p_business_id: businessId, p_customer_id: customerId, p_blocked: blocked, p_reason: reason,
+    }),
     // ערוץ אחד לכל המאזינים (היומן ולשונית הבקשות). supabase.channel() מחזיר ערוץ קיים
     // לפי שם, ואסור להוסיף לו callbacks אחרי subscribe — לכן לא פותחים ערוץ לכל מאזין.
     subscribe(onChange) {
