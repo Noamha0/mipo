@@ -87,20 +87,20 @@ function parseRange(r: string): [string, string] {
   return [new Date(a).toISOString(), new Date(b).toISOString()];
 }
 
-async function rpc(fn: string, args: Record<string, unknown>) {
-  const { error } = await supabase.rpc(fn, args);
-  if (error) throw new Error(error.message);
-}
-
 function createSupabaseApi(businessId: string): CalendarApi {
   let calendarId: string | null = null;
   let channel: RealtimeChannel | null = null;
   const listeners = new Set<(isNew: boolean) => void>();
   const ownWrites = { at: 0 };
-  const mutate = async (fn: string, args: Record<string, unknown>) => {
+  const emit = (isNew: boolean) => listeners.forEach((l) => l(isNew));
+  // אחרי כל פעולה שלנו מרעננים מיד, בלי לחכות ל-Realtime (שלא תמיד שולח, למשל במחיקה)
+  const write = async (action: () => Promise<{ error: { message: string } | null }>) => {
     ownWrites.at = Date.now();
-    await rpc(fn, args);
+    const { error } = await action();
+    if (error) throw new Error(error.message);
+    emit(false);
   };
+  const mutate = (fn: string, args: Record<string, unknown>) => write(async () => supabase.rpc(fn, args));
 
   return {
     async load(from, to) {
@@ -132,29 +132,24 @@ function createSupabaseApi(businessId: string): CalendarApi {
         const { data } = await supabase.from('calendars').select('id').eq('business_id', businessId).single();
         calendarId = data?.id ?? null;
       }
-      ownWrites.at = Date.now();
-      const { error } = await supabase.from('calendar_exceptions').insert({
+      await write(async () => supabase.from('calendar_exceptions').insert({
         business_id: businessId, calendar_id: calendarId, kind: 'block', during: `[${from},${to})`, reason: reason.trim() || null,
-      });
-      if (error) throw new Error(error.message);
+      }));
     },
-    async removeBlock(id) {
-      ownWrites.at = Date.now();
-      const { error } = await supabase.from('calendar_exceptions').delete().eq('id', id);
-      if (error) throw new Error(error.message);
-    },
+    removeBlock: (id) => write(async () => supabase.from('calendar_exceptions').delete().eq('id', id)),
     // ערוץ אחד לכל המאזינים (היומן ולשונית הבקשות). supabase.channel() מחזיר ערוץ קיים
     // לפי שם, ואסור להוסיף לו callbacks אחרי subscribe — לכן לא פותחים ערוץ לכל מאזין.
     subscribe(onChange) {
       listeners.add(onChange);
       if (!channel) {
-        const emit = (isNew: boolean) => listeners.forEach((l) => l(isNew));
         channel = supabase
           .channel(`calendar-${businessId}-${crypto.randomUUID()}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `business_id=eq.${businessId}` },
             (p) => emit(p.eventType === 'INSERT' && Date.now() - ownWrites.at > 3000))
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_exceptions', filter: `business_id=eq.${businessId}` },
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calendar_exceptions', filter: `business_id=eq.${businessId}` },
             () => emit(false))
+          // Realtime לא מסנן אירועי DELETE, אז מקשיבים לכל המחיקות ומרעננים (רק ה-id נשלח)
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'calendar_exceptions' }, () => emit(false))
           .subscribe();
       }
       return () => {
