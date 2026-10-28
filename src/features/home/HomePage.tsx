@@ -7,6 +7,7 @@ import { BrandMark } from '../../ui/Brand';
 import BizCard from '../../ui/BizCard';
 import Icon, { type IconName } from '../../ui/Icon';
 import SearchCard from '../../ui/SearchCard';
+import SiteFooter from '../../ui/SiteFooter';
 import SiteHeader from '../../ui/SiteHeader';
 import BottomNav from './BottomNav';
 
@@ -132,9 +133,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      <footer className="site-footer">
-        © MIPO · כל השירותים המקומיים, במקום אחד
-      </footer>
+      <SiteFooter />
 
       <BottomNav active="home" />
     </div>

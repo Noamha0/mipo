@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { displayPhone, formatPrice } from '../../lib/format';
 import type { Business } from '../../lib/types';
 import Icon from '../../ui/Icon';
+import SiteFooter from '../../ui/SiteFooter';
 import SiteHeader from '../../ui/SiteHeader';
 import PhoneLogin from '../auth/PhoneLogin';
 import { useSession } from '../auth/useSession';
@@ -47,6 +48,7 @@ export default function MyPage() {
           </>
         )}
       </main>
+      <SiteFooter />
       <BottomNav active="appointments" />
     </div>
   );

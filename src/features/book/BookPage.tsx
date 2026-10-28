@@ -5,6 +5,7 @@ import { formatDuration, formatPrice } from '../../lib/format';
 import type { Business, Category, OpenHour, Service } from '../../lib/types';
 import Brand from '../../ui/Brand';
 import Icon from '../../ui/Icon';
+import SiteFooter from '../../ui/SiteFooter';
 import SiteHeader from '../../ui/SiteHeader';
 import PhoneLogin from '../auth/PhoneLogin';
 import { useSession } from '../auth/useSession';
@@ -278,6 +279,7 @@ export default function BookPage() {
           </button>
         </div>
       </main>
+      <SiteFooter />
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { normalizePhone } from '../../lib/format';
@@ -61,6 +62,9 @@ export default function PhoneLogin({ title, subtitle }: { title: string; subtitl
           <button className="btn block" disabled={busy || phone.replace(/\D/g, '').length < 9}>
             {busy ? 'שולחת…' : 'שלחו לי קוד בסמס'}
           </button>
+          <p className="muted" style={{ fontSize: '0.82rem', textAlign: 'center' }}>
+            שליחת הקוד מהווה הסכמה ל<Link to="/terms" target="_blank">תקנון</Link> ול<Link to="/privacy" target="_blank">מדיניות הפרטיות</Link>.
+          </p>
         </form>
       ) : (
         <form className="stack" onSubmit={verify}>

@@ -8,6 +8,7 @@ import Icon from '../../ui/Icon';
 import SearchCard from '../../ui/SearchCard';
 import SiteHeader from '../../ui/SiteHeader';
 import BottomNav from '../home/BottomNav';
+import SiteFooter from '../../ui/SiteFooter';
 
 /** תוצאות חיפוש: ?q=&city=&sector= */
 export default function SearchPage() {
@@ -84,6 +85,7 @@ export default function SearchPage() {
           </div>
         )}
       </main>
+      <SiteFooter />
       <BottomNav active="search" />
     </div>
   );
