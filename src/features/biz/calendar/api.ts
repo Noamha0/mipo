@@ -1,3 +1,4 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../../../lib/supabase';
 import { DEV_BYPASS } from '../../auth/useSession';
 import { createDemoApi } from './demoApi';
@@ -93,6 +94,8 @@ async function rpc(fn: string, args: Record<string, unknown>) {
 
 function createSupabaseApi(businessId: string): CalendarApi {
   let calendarId: string | null = null;
+  let channel: RealtimeChannel | null = null;
+  const listeners = new Set<(isNew: boolean) => void>();
   const ownWrites = { at: 0 };
   const mutate = async (fn: string, args: Record<string, unknown>) => {
     ownWrites.at = Date.now();
@@ -140,15 +143,27 @@ function createSupabaseApi(businessId: string): CalendarApi {
       const { error } = await supabase.from('calendar_exceptions').delete().eq('id', id);
       if (error) throw new Error(error.message);
     },
+    // ערוץ אחד לכל המאזינים (היומן ולשונית הבקשות). supabase.channel() מחזיר ערוץ קיים
+    // לפי שם, ואסור להוסיף לו callbacks אחרי subscribe — לכן לא פותחים ערוץ לכל מאזין.
     subscribe(onChange) {
-      const ch = supabase
-        .channel(`calendar-${businessId}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `business_id=eq.${businessId}` },
-          (p) => onChange(p.eventType === 'INSERT' && Date.now() - ownWrites.at > 3000))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_exceptions', filter: `business_id=eq.${businessId}` },
-          () => onChange(false))
-        .subscribe();
-      return () => { void supabase.removeChannel(ch); };
+      listeners.add(onChange);
+      if (!channel) {
+        const emit = (isNew: boolean) => listeners.forEach((l) => l(isNew));
+        channel = supabase
+          .channel(`calendar-${businessId}-${crypto.randomUUID()}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `business_id=eq.${businessId}` },
+            (p) => emit(p.eventType === 'INSERT' && Date.now() - ownWrites.at > 3000))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_exceptions', filter: `business_id=eq.${businessId}` },
+            () => emit(false))
+          .subscribe();
+      }
+      return () => {
+        listeners.delete(onChange);
+        if (listeners.size === 0 && channel) {
+          void supabase.removeChannel(channel);
+          channel = null;
+        }
+      };
     },
   };
 }
