@@ -16,7 +16,7 @@
 | תחום | מצב |
 |---|---|
 | בסיס נתונים | ✅ `0001_foundation.sql` (סכימה, RLS, מנוע משבצות, כל פעולות התור כ-RPC), `0002_mipo_catalog.sql` (56 קטגוריות ב-11 קבוצות) ו-`0003_business_calendar.sql` (קריאת היומן ב-RPC אחד + Realtime). **22 בדיקות** ב-`npm run test:db` (PGlite, בלי Docker) |
-| בסיס חי | ✅ Supabase `agrdgxwfhengnxlikaby` (חשבון **Noamha0**). 0001, 0002 ו-`seed_mipo_demo.sql` הורצו (**0003 עוד לא**): 10 עסקי `mipo-demo-*` בעפולה, ובנוסף ~15 עסקי דמו של יופי בערים אחרות |
+| בסיס חי | ✅ Supabase `agrdgxwfhengnxlikaby` (חשבון **Noamha0**). 0001, 0002, 0003 ו-`seed_mipo_demo.sql` הורצו: 10 עסקי `mipo-demo-*` בעפולה, ובנוסף ~15 עסקי דמו של יופי בערים אחרות |
 | מותג ועיצוב | ✅ לוגו SVG (`src/ui/Brand.tsx`), טורקיז, Rubik, אייקונים מצוירים (`src/ui/Icon.tsx`) |
 | דף בית | ✅ hero עם חיפוש, 8 אריחי תחומים (`src/lib/sectors.ts`), "זמינים עכשיו", איך זה עובד, CTA לעסקים |
 | חיפוש | ✅ `/search?q=&city=&sector=`, כרטיסים עם שעות פנויות אמיתיות (`src/lib/discovery.ts`) |
@@ -29,8 +29,8 @@
   ולהגדיר מספר בדיקה `972501234567=123456`. עד אז אי אפשר להשלים הזמנה או להקים עסק אמיתי.
 - `DEV_SKIP_AUTH = true` ב-`src/features/auth/useSession.ts`: עוקף התחברות ב-dev בלבד, ושאילתות שדורשות
   משתמש אמיתי נכשלות בו. להחזיר ל-`false` כשבודקים התחברות.
-- **`0003_business_calendar.sql` עוד לא הורצה על הבסיס החי** (ה-MCP של Supabase לא התחבר בסשן). בלעדיה היומן בפרודקשן
-  מקבל שגיאה. להריץ ב-SQL Editor או דרך ה-MCP, ואז לבדוק את היומן עם משתמש אמיתי (דורש OTP).
+- היומן עוד לא נבדק מקצה לקצה עם משתמש אמיתי (דורש OTP). 0003 הורצה ב-28.10.2026 דרך SQL Editor, ואומת: הפונקציה קיימת,
+  anon לא יכול להריץ אותה, ו-bookings ו-calendar_exceptions בפרסום supabase_realtime.
 - תמונות הדמו אקראיות (picsum) ולא תואמות לתחום.
 - **פריסה:** Vercel, פרויקט `mipo` תחת `noamhadarys-projects`. production בכתובת https://mipo-sigma.vercel.app. הפריסה ידנית (`vercel deploy --prod`), כי אין חיבור Git אוטומטי.
 - **git:** ריפו ב-GitHub `Noamha0/mipo`, ענף `main`.
@@ -38,7 +38,7 @@
 ## אבני דרך הבאות
 | # | אבן דרך | מה |
 |---|---|---|
-| 3 | ~~**יומן העסק**~~ | ✅ בקוד. נשאר: להריץ 0003 על הבסיס החי ובדיקה מקצה לקצה עם התחברות אמיתית |
+| 3 | ~~**יומן העסק**~~ | ✅ בקוד ובבסיס החי. נשאר: בדיקה מקצה לקצה עם התחברות אמיתית |
 | 4 | **הלקוחה** | "התורים שלי", ביטול, ערעור, העדפת חלופות, מועדפים |
 | 5 | **דחייה ופקיעה** | pg_cron לפקיעה, חלופות באותו עסק ובעסקים אחרים באותה קטגוריה |
 | 6 | **הודעות** | outbox, Edge Function, WhatsApp Cloud API ו-SMS, תזכורות |
@@ -52,5 +52,5 @@
 
 ## עבודה עם הבסיס
 - MCP של Supabase מוגדר ב-`.mcp.json`, כך שבסשן שנפתח בתיקייה הזו אפשר להריץ SQL ומיגרציות ישירות.
-- חלופה שהוכחה: Claude in Chrome על ה-SQL Editor, והדבקה מהלוח. (הקלדה ל-Monaco שוברת סוגריים.)
+- חלופה שהוכחה: Claude in Chrome על ה-SQL Editor. הכי אמין: `monaco.editor.getEditors()[0].setValue(sql)` דרך JavaScript ואז Run. (הקלדה ל-Monaco שוברת סוגריים.)
 - תצוגה מקדימה: `npm run dev -- --port 5191` (config "mipo" ב-`../.claude/launch.json`).
