@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import type { Business } from '../../lib/types';
+import type { Business, OpenHour, Service } from '../../lib/types';
 import Brand from '../../ui/Brand';
 import Icon from '../../ui/Icon';
 import ShareLink from './ShareLink';
@@ -9,6 +9,11 @@ import LocationStep from './steps/LocationStep';
 import ServicesStep from './steps/ServicesStep';
 import HoursStep from './steps/HoursStep';
 import RulesStep from './steps/RulesStep';
+import { createCalendarApi } from './calendar/api';
+import CalendarTab from './calendar/CalendarTab';
+import RequestsTab from './calendar/RequestsTab';
+import { useNow, useRange } from './calendar/parts';
+import { zonedIso, addDays, todayKey } from '../book/datetime';
 
 interface Setup {
   services: number;
@@ -16,24 +21,45 @@ interface Setup {
   location: boolean;
 }
 
-/** מסך הבית של העסק. היומן עצמו נכנס באבן דרך 3. */
+type Tab = 'calendar' | 'requests' | 'settings';
+
+/** מסך הבית של העסק: יומן, בקשות שמחכות לטיפול, והגדרות */
 export default function BizHome({ business, onBusiness }: { business: Business; onBusiness: (b: Business) => void }) {
   const [setup, setSetup] = useState<Setup | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [hours, setHours] = useState<OpenHour[]>([]);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('calendar');
+  const [reloadKey, setReloadKey] = useState(0);
+  const api = useMemo(() => createCalendarApi(business.id), [business.id]);
+  const now = useNow();
 
   useEffect(() => {
     Promise.all([
-      supabase.from('services').select('id', { count: 'exact', head: true }).eq('business_id', business.id).eq('active', true),
-      supabase.from('open_hours').select('id', { count: 'exact', head: true }).eq('business_id', business.id),
-    ]).then(([s, h]) =>
-      setSetup({ services: s.count ?? 0, hours: h.count ?? 0, location: Boolean(business.city) }),
-    );
-  }, [business]);
+      supabase.from('services').select('*').eq('business_id', business.id).eq('active', true).order('sort_order'),
+      supabase.from('open_hours').select('*').eq('business_id', business.id).order('weekday').order('opens'),
+    ]).then(([s, h]) => {
+      setServices((s.data ?? []) as Service[]);
+      setHours((h.data ?? []) as OpenHour[]);
+      setSetup({ services: s.data?.length ?? 0, hours: h.data?.length ?? 0, location: Boolean(business.city) });
+    });
+  }, [business, reloadKey]);
+
+  // בקשות וערעורים: חודש אחורה (סימון הגעה, ערעורים) וחודש קדימה (בקשות)
+  const today = todayKey();
+  const requests = useRange(api, zonedIso(addDays(today, -30), '00:00'), zonedIso(addDays(today, 31), '00:00'),
+    () => toast('נכנסה הזמנה חדשה'));
+  const pendingCount = (requests.bookings ?? []).filter((b) => b.status === 'pending').length;
+
+  function toast(msg: string) {
+    setSavedMsg(msg);
+    setTimeout(() => setSavedMsg(null), 2500);
+  }
 
   const saved = (label: string) => (b: Business) => {
     onBusiness(b);
-    setSavedMsg(`${label} נשמרו`);
-    setTimeout(() => setSavedMsg(null), 2500);
+    setReloadKey((k) => k + 1);
+    toast(`${label} נשמרו`);
   };
 
   const todo = setup && [
@@ -61,15 +87,21 @@ export default function BizHome({ business, onBusiness }: { business: Business; 
         </button>
       </header>
 
-      <main className="page stack">
-        <div className="hero stack-sm" style={{ borderRadius: 'var(--radius)' }}>
-          <p className="muted">שלום,</p>
-          <h1>{business.name}</h1>
-          <div className="row wrap" style={{ gap: '0.5rem' }}>
-            <span className="tag" style={{ background: 'rgb(255 255 255 / 0.2)', color: '#fff' }}>
-              {business.status === 'listed' ? 'מופיע בחיפוש' : 'הלינק האישי פעיל'}
-            </span>
+      <main className={`page stack${tab === 'calendar' ? ' wide-cal' : ''}`}>
+        <div className="row between wrap" style={{ gap: '0.5rem' }}>
+          <div className="stack-sm" style={{ gap: 0 }}>
+            <h1 style={{ fontSize: '1.4rem' }}>{business.name}</h1>
+            <span className="muted">{business.status === 'listed' ? 'מופיע בחיפוש' : 'הלינק האישי פעיל'}</span>
           </div>
+        </div>
+
+        <div className="tabs" role="tablist" aria-label="ניהול העסק">
+          {([['calendar', 'יומן'], ['requests', 'בקשות'], ['settings', 'הגדרות']] as const).map(([key, label]) => (
+            <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>
+              {label}
+              {key === 'requests' && pendingCount > 0 && <span className="count-badge" aria-label={`${pendingCount} ממתינות`}>{pendingCount}</span>}
+            </button>
+          ))}
         </div>
 
         {todo && !ready && (
@@ -83,32 +115,32 @@ export default function BizHome({ business, onBusiness }: { business: Business; 
                 </li>
               ))}
             </ul>
+            {tab !== 'settings' && <button className="btn secondary small" style={{ alignSelf: 'flex-start' }} onClick={() => setTab('settings')}>להגדרות</button>}
           </section>
         )}
 
-        <section className="card stack">
-          <div className="stack-sm">
-            <h2>הלינק האישי שלך</h2>
-            <p className="muted">לקוחות שנכנסות אליו רואות את התורים הפנויים ומזמינות לבד.</p>
-          </div>
-          <ShareLink slug={business.slug} businessName={business.name} />
-        </section>
-
-        <section className="card notice" style={{ border: 'none' }}>
-          <Icon name="clock" />
-          <p>היומן, הבקשות הממתינות לאישור והקליטה הידנית של תורים יופיעו כאן בשלב הבא.</p>
-        </section>
-
-        <h2 style={{ marginBlockStart: '0.5rem' }}>הגדרות</h2>
-        {sections.map((s) => (
-          <details key={s.key} className="card section">
-            <summary>
-              {s.title}
-              <Icon name="chevron" size={20} />
-            </summary>
-            {s.body}
-          </details>
-        ))}
+        {tab === 'calendar' && <CalendarTab api={api} services={services} hours={hours} />}
+        {tab === 'requests' && <RequestsTab api={api} bookings={requests.bookings} services={services} hours={hours} now={now} />}
+        {tab === 'settings' && (
+          <>
+            <section className="card stack">
+              <div className="stack-sm">
+                <h2>הלינק האישי שלך</h2>
+                <p className="muted">לקוחות שנכנסות אליו רואות את התורים הפנויים ומזמינות לבד.</p>
+              </div>
+              <ShareLink slug={business.slug} businessName={business.name} />
+            </section>
+            {sections.map((s) => (
+              <details key={s.key} className="card section">
+                <summary>
+                  {s.title}
+                  <Icon name="chevron" size={20} />
+                </summary>
+                {s.body}
+              </details>
+            ))}
+          </>
+        )}
       </main>
 
       {savedMsg && (

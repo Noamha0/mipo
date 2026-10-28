@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Business } from '../../lib/types';
-import { useSession } from '../auth/useSession';
+import { DEV_BYPASS, useSession } from '../auth/useSession';
 import PhoneLogin from '../auth/PhoneLogin';
 import Wizard from './Wizard';
 import BizHome from './BizHome';
@@ -15,6 +15,12 @@ export default function BizRoot() {
   const uid = session?.user.id;
 
   const resolve = useCallback(async (forUid: string) => {
+    // ⚠️ עקיפת DEV: בלי משתמש אמיתי אין חברות בעסק, אז מציגים עסק דמו (קריאה ציבורית)
+    // עם יומן בזיכרון. ‎/biz?wizard פותח את אשף ההקמה במקום.
+    if (DEV_BYPASS && !new URLSearchParams(location.search).has('wizard')) {
+      const { data: demo } = await supabase.from('businesses').select('*').eq('slug', 'mipo-demo-nails').maybeSingle<Business>();
+      if (demo) { setResolved({ uid: forUid, business: demo }); return; }
+    }
     const { data: m } = await supabase.from('business_members').select('business_id').limit(1).maybeSingle();
     if (!m) {
       setResolved({ uid: forUid, business: null });

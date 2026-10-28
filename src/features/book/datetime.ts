@@ -25,3 +25,59 @@ export function relativeDay(iso: string): string {
   if (k === tomorrow) return 'מחר';
   return shortDayFmt.format(new Date(iso));
 }
+
+// ---------- שעון קיר בירושלים (היומן) ----------
+// מפתח יום הוא "YYYY-MM-DD" ושעה היא "HH:MM", תמיד בזמן ישראל, בלי קשר לאזור הזמן של הדפדפן.
+
+const partsFmt = new Intl.DateTimeFormat('en-US', {
+  timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+});
+
+function tzOffsetMs(utcMs: number): number {
+  const p = Object.fromEntries(partsFmt.formatToParts(new Date(utcMs)).map((x) => [x.type, x.value]));
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - Math.floor(utcMs / 60_000) * 60_000;
+}
+
+/** ("2026-10-28", "14:30") → ISO של אותו רגע בירושלים */
+export function zonedIso(key: string, hhmm: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const [h, mi] = hhmm.split(':').map(Number);
+  const guess = Date.UTC(y, m - 1, d, h, mi);
+  let utc = guess - tzOffsetMs(guess);
+  utc = guess - tzOffsetMs(utc); // תיקון סביב מעבר שעון קיץ
+  return new Date(utc).toISOString();
+}
+
+/** דקות מחצות בירושלים */
+export function minutesOfDay(iso: string): number {
+  const p = Object.fromEntries(partsFmt.formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+  return +p.hour * 60 + +p.minute;
+}
+
+export const todayKey = () => dayKey(new Date().toISOString());
+
+export function addDays(key: string, n: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+/** 0 = ראשון */
+export function weekdayOf(key: string): number {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+export const weekStart = (key: string) => addDays(key, -weekdayOf(key));
+
+/** 870 → "14:30" */
+export const hhmm = (min: number) =>
+  `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+/** "09:00:00" → 540 */
+export const timeToMin = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+
+/** יום תצוגה ממפתח יום (בצהריים, כדי שלא יזלוג ליום סמוך) */
+export const keyToIso = (key: string) => zonedIso(key, '12:00');

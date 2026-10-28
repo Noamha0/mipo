@@ -5,6 +5,7 @@ export type IconName =
   | 'back' | 'next' | 'check' | 'copy' | 'plus' | 'trash' | 'chevron'
   | 'chat' | 'clock' | 'pin' | 'home' | 'studio' | 'logout' | 'edit'
   | 'search' | 'user' | 'heart' | 'star' | 'calendar' | 'bolt' | 'arrow' | 'menu'
+  | 'close' | 'ban' | 'phone'
   | 'lotus' | 'scissors' | 'dumbbell' | 'house' | 'wrench' | 'pulse' | 'paw' | 'book' | 'dots';
 
 const paths: Record<IconName, React.ReactNode> = {
@@ -152,6 +153,15 @@ const paths: Record<IconName, React.ReactNode> = {
       <path d="M12 7.2v12.2" />
     </>
   ),
+  close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
+  // עיגול עם קו אלכסוני — חסימה ביומן
+  ban: (
+    <>
+      <circle cx="12" cy="12" r="7.5" />
+      <path d="M6.8 17.2L17.2 6.8" />
+    </>
+  ),
+  phone: <path d="M8.2 4.5H6A1.5 1.5 0 0 0 4.5 6c0 7.5 6 13.5 13.5 13.5a1.5 1.5 0 0 0 1.5-1.5v-2.2l-3.6-1.4-1.7 1.7a10 10 0 0 1-5.3-5.3l1.7-1.7z" />,
   dots: <path d="M6.5 12h.01M12 12h.01M17.5 12h.01" strokeWidth="3" />,
 };
 

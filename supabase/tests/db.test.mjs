@@ -332,6 +332,28 @@ test('approval deadline counts business hours and respects the caps', async () =
   assert.equal(await deadline(await at(0, '12:00'), await at(0, '12:40')), (await at(0, '12:15')).getTime()); // רצפה 15 דק'
 });
 
+test('business calendar: names, phones and reliability for the team only', async () => {
+  const cal = (uid, from, to) => as(uid, `select * from business_calendar($1, $2, $3)`, [bizA, from, to]);
+  const rows = await cal(U.ownerA, await at(3, '00:00'), await at(4, '00:00'));
+  const shira = rows.find((r) => r.customer_name === 'שירה מהוואטסאפ');
+  assert.equal(shira.customer_phone, '972540000003');
+  assert.equal(shira.services, "לק ג'ל רוסי");
+  assert.equal(shira.source, 'manual');
+  assert.deepEqual([shira.visits, shira.attended, shira.late_cancels, shira.score], [1, 1, 1, 67]);
+  assert.equal(rows.find((r) => r.customer_name === 'נועה').score, null); // אין היסטוריה
+
+  await fails(cal(U.ownerB, await at(3, '00:00'), await at(4, '00:00')), 'not_allowed');
+  await fails(cal(U.custC, await at(3, '00:00'), await at(4, '00:00')), 'not_allowed');
+  await fails(cal(null, await at(3, '00:00'), await at(4, '00:00')), 'permission denied');
+  await fails(cal(U.ownerA, await at(0, '00:00'), await at(70, '00:00')), 'invalid_range');
+
+  // בקשה שעבר מועד האישור שלה מוצגת כפקועה, עוד לפני ה-cron
+  const [{ id }] = await su(`select id from bookings where business_id = $1 and status = 'pending' limit 1`, [bizA]);
+  await su(`update bookings set approval_deadline = now() - interval '1 minute' where id = $1`, [id]);
+  const day = await cal(U.ownerA, await at(D2, '00:00'), await at(D2 + 1, '00:00'));
+  assert.equal(day.find((r) => r.id === id).status, 'expired');
+});
+
 test('suspended business disappears', async () => {
   await su(`update businesses set status = 'suspended' where id = $1`, [bizB]);
   assert.deepEqual((await as(null, `select id from businesses`)).map((r) => r.id), [bizA]);

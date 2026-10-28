@@ -7,6 +7,9 @@ import { supabase } from '../../lib/supabase';
 // להתחברות אמיתית: שנה ל-false (או מחק את הקבוע ואת הבלוק המסומן ב-useEffect).
 const DEV_SKIP_AUTH = true;
 
+/** העקיפה פעילה עכשיו. צד העסק מציג אז יומן דמו בזיכרון במקום נתונים אמיתיים. */
+export const DEV_BYPASS = import.meta.env.DEV && DEV_SKIP_AUTH;
+
 const DEV_SESSION = {
   access_token: 'dev-no-auth',
   refresh_token: 'dev-no-auth',
@@ -30,7 +33,7 @@ export function useSession() {
 
   useEffect(() => {
     // ⚠️ עוקף DEV — ראה DEV_SKIP_AUTH למעלה. מחק בלוק זה להתחברות אמיתית.
-    if (import.meta.env.DEV && DEV_SKIP_AUTH) {
+    if (DEV_BYPASS) {
       setSession(DEV_SESSION);
       setLoading(false);
       return;
