@@ -100,20 +100,26 @@ let bookingC10; // התור של C ב-10:00
 
 // ---------- Tests ----------
 
-test('catalog seeded (0001 beauty + 0002 MIPO sectors)', async () => {
-  const [{ n }] = await as(null, `select count(*)::int n from categories`);
+test('catalog seeded (0001 beauty + 0002 MIPO sectors + 0007 "other" per group)', async () => {
+  const [{ n }] = await as(null, `select count(*)::int n from categories where not is_other`);
   assert.equal(n, 56);
   const [{ g }] = await as(null, `select count(*)::int g from category_groups`);
   assert.equal(g, 11);
   // כל קטגוריה שייכת לקבוצה קיימת, וכל קבוצה חדשה קיבלה קטגוריות
   const empty = await as(null, `select key from category_groups cg where not exists (select 1 from categories c where c.group_key = cg.key)`);
   assert.deepEqual(empty, []);
+  // לכל תחום בדיוק "אחר" אחד
+  const others = await as(null, `select group_key, count(*)::int k from categories where is_other group by group_key`);
+  assert.equal(others.length, 11);
+  assert.ok(others.every((r) => r.k === 1));
 });
 
-test('0002 is safe to re-run', async () => {
-  await db.exec(readFileSync(new URL('../migrations/0002_mipo_catalog.sql', here), 'utf8'));
+test('0002 and 0007 are safe to re-run', async () => {
+  for (const f of ['0002_mipo_catalog.sql', '0007_other_service_type.sql']) {
+    await db.exec(readFileSync(new URL(`../migrations/${f}`, here), 'utf8'));
+  }
   const [{ n }] = await su(`select count(*)::int n from categories`);
-  assert.equal(n, 56);
+  assert.equal(n, 67);
 });
 
 test('anon sees public profile but nothing private', async () => {
@@ -496,6 +502,15 @@ test('alternatives after a rejection: other times here, and nearby businesses in
   await su(`delete from business_blocked_customers where business_id = $1`, [bizF]);
   await fails(alts(U.custC), 'not_allowed');
   await fails(as(null, `select * from booking_alternatives($1)`, [bk.id]), 'permission denied');
+
+  // שירות "אחר" לא מתאים עסקים זה לזה: לשניהם "אחר (ציפורניים)", אבל אין חלופה מעסק אחר
+  const otherNails = (await su(`select id from categories where is_other and group_key = 'nails'`))[0].id;
+  const [{ id: artA }] = await as(U.ownerA, `insert into services (business_id, category_id, name, duration_min) values ($1, $2, 'ציור על ציפורניים', 30) returning id`, [bizA, otherNails]);
+  await as(ownerF, `insert into services (business_id, category_id, name, duration_min) values ($1, $2, 'קישוט אבנים', 30)`, [bizF, otherNails]);
+  const bk2 = await book(U.custD, bizA, [artA], await at(6, '14:00'));
+  await as(U.ownerA, `select * from decide_booking($1, false)`, [bk2.id]);
+  const alts2 = await as(U.custD, `select * from booking_alternatives($1)`, [bk2.id]);
+  assert.ok(alts2.length > 0 && alts2.every((a) => a.kind === 'same'));
 
   await su(`update businesses set require_approval_all = false where id = $1`, [bizA]);
 });

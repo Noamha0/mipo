@@ -54,6 +54,8 @@ export interface Category {
   name: string;
   active: boolean;
   sort_order: number;
+  /** "אחר" של התחום (0007): לא מוצג ללקוחות כתגית ולא משמש להתאמת חלופות */
+  is_other?: boolean;
 }
 
 export interface Service {

@@ -44,13 +44,14 @@ export default function ServicesStep({ business, onSaved, submitLabel, formId }:
   // חיפוש חופשי בכל הקטלוג — במקום לעבור תחום אחרי תחום
   const q = query.trim();
   const matches = q
-    ? categories.filter((c) => c.name.includes(q) || groupName.get(c.group_key)?.includes(q)).slice(0, 8)
+    ? categories.filter((c) => !c.is_other && (c.name.includes(q) || groupName.get(c.group_key)?.includes(q))).slice(0, 8)
     : [];
 
+  // ב"אחר" השם הוא של העסק — מה שהקלידה בחיפוש, אם הקלידה
   function pickCategory(c: Category) {
     setGroupKey(c.group_key);
     setCategoryId(c.id);
-    setName(c.name);
+    setName(c.is_other ? q : c.name);
     setQuery('');
   }
 
@@ -139,7 +140,7 @@ export default function ServicesStep({ business, onSaved, submitLabel, formId }:
             placeholder="למשל: גבות, עיסוי, אינסטלציה"
             aria-describedby="svc-search-help"
           />
-          <small id="svc-search-help">או בחרי תחום מהרשימה למטה.</small>
+          <small id="svc-search-help">או בחרי תחום מהרשימה למטה. לא מוצאת? בכל תחום יש "אחר".</small>
         </label>
         {q && (
           matches.length ? (
@@ -151,7 +152,16 @@ export default function ServicesStep({ business, onSaved, submitLabel, formId }:
               ))}
             </div>
           ) : (
-            <p className="muted" role="status">לא מצאנו את "{q}". בחרי את התחום הקרוב ביותר, ואת השם שיופיע ללקוחות תכתבי בעצמך.</p>
+            <div className="stack-sm" role="status">
+              <p className="muted">לא מצאנו את "{q}" ברשימה. אפשר להוסיף אותו כ"אחר" בתחום המתאים:</p>
+              <div className="chips" role="group" aria-label="אחר בתחום">
+                {categories.filter((c) => c.is_other).map((c) => (
+                  <button type="button" key={c.id} className="chip" onClick={() => pickCategory(c)}>
+                    {groupName.get(c.group_key)}
+                  </button>
+                ))}
+              </div>
+            </div>
           )
         )}
         <div className="chips" role="group" aria-label="תחום">
@@ -172,7 +182,7 @@ export default function ServicesStep({ business, onSaved, submitLabel, formId }:
           <div className="chips" role="group" aria-label="סוג שירות">
             {groupCategories.map((c) => (
               <button type="button" key={c.id} className="chip" aria-pressed={categoryId === c.id} onClick={() => pickCategory(c)}>
-                {c.name}
+                {c.is_other ? 'אחר' : c.name}
               </button>
             ))}
           </div>

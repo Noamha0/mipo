@@ -43,7 +43,7 @@ export async function loadListings(): Promise<{ listings: Listing[]; categories:
     return {
       business,
       groups: new Set(cats.map((x) => x.group_key)),
-      categoryNames: [...new Set(cats.map((x) => x.name))],
+      categoryNames: [...new Set(cats.filter((x) => !x.is_other).map((x) => x.name))], // "אחר" לא תגית
       minPrice: prices.length ? Math.min(...prices) : null,
       probeServiceId: shortest?.id ?? null,
     };

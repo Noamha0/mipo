@@ -123,7 +123,7 @@ export default function BookPage() {
     );
   }
 
-  const catName = new Map(categories.map((c) => [c.id, c.name]));
+  const catName = new Map(categories.filter((c) => !c.is_other).map((c) => [c.id, c.name])); // "אחר" לא תגית
   const tags = [...new Set(services.map((s) => catName.get(s.category_id)).filter(Boolean))] as string[];
   const loc = [business.city, business.neighborhood, business.address_mode === 'studio' ? business.street_public : null].filter(Boolean).join(' · ');
   const daySlots = days.find(([k]) => k === day)?.[1] ?? [];
