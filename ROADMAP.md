@@ -15,7 +15,7 @@
 ## מה בנוי
 | תחום | מצב |
 |---|---|
-| בסיס נתונים | ✅ `0001_foundation.sql` (סכימה, RLS, מנוע משבצות, כל פעולות התור כ-RPC), `0002_mipo_catalog.sql` (56 קטגוריות ב-11 קבוצות) `0003_business_calendar.sql` (קריאת היומן ב-RPC אחד + Realtime) `0004_customer_side.sql` (my_bookings, מועדפים) ו-`0005_consent_and_blocks.sql` (מייל, הסכמות לדיוור, חסימות) ו-`0006_expiry_and_alternatives.sql` (פקיעה מיידית + pg_cron, חלופות). **29 בדיקות** ב-`npm run test:db` (PGlite, בלי Docker) |
+| בסיס נתונים | ✅ `0001_foundation.sql` (סכימה, RLS, מנוע משבצות, כל פעולות התור כ-RPC), `0002_mipo_catalog.sql` (56 קטגוריות ב-11 קבוצות) `0003_business_calendar.sql` (קריאת היומן ב-RPC אחד + Realtime) `0004_customer_side.sql` (my_bookings, מועדפים) ו-`0005_consent_and_blocks.sql` (מייל, הסכמות לדיוור, חסימות) `0006_expiry_and_alternatives.sql` (פקיעה מיידית + pg_cron, חלופות) ו-`0007_other_service_type.sql` ("אחר" בכל תחום, הורצה ב-10.11.2026; לא מוצג ללקוחות ולא משמש לחלופות). **29 בדיקות** ב-`npm run test:db` (PGlite, בלי Docker) |
 | בסיס חי | ✅ Supabase `agrdgxwfhengnxlikaby` (חשבון **Noamha0**). 0001–0005 ו-`seed_mipo_demo.sql` הורצו: 10 עסקי `mipo-demo-*` בעפולה, ובנוסף ~15 עסקי דמו של יופי בערים אחרות |
 | מותג ועיצוב | ✅ לוגו SVG (`src/ui/Brand.tsx`), טורקיז, Rubik, אייקונים מצוירים (`src/ui/Icon.tsx`) |
 | דף בית | ✅ hero עם חיפוש, 8 אריחי תחומים (`src/lib/sectors.ts`), "זמינים עכשיו", איך זה עובד, CTA לעסקים |
