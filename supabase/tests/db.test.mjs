@@ -515,6 +515,39 @@ test('alternatives after a rejection: other times here, and nearby businesses in
   await su(`update businesses set require_approval_all = false where id = $1`, [bizA]);
 });
 
+test('admin screen: businesses list, approval with audit, customer lookup — admins only', async () => {
+  // E נוסף ל-platform_admins בבדיקת החסימה המערכתית
+  await fails(as(U.ownerA, `select * from admin_businesses()`), 'not_allowed');
+  await fails(as(U.ownerA, `select * from admin_set_business_status($1, 'listed')`, [bizA]), 'not_allowed');
+  await fails(as(U.ownerA, `select * from admin_find_customer('054-0000003')`), 'not_allowed');
+  await fails(as(null, `select * from admin_businesses()`), 'permission denied');
+  assert.equal((await as(U.ownerA, `select is_platform_admin() a`))[0].a, false);
+  assert.equal((await as(U.custE, `select is_platform_admin() a`))[0].a, true);
+
+  const list = await as(U.custE, `select * from admin_businesses()`);
+  const a = list.find((r) => r.id === bizA);
+  assert.equal(a.status, 'pending');
+  assert.equal(a.owner_phone, '972500000001');
+  assert.ok(a.services.includes('ציור על ציפורניים'));
+  assert.equal(a.other_services, 1);
+  assert.ok(a.bookings > 0);
+  assert.equal(list[0].status, 'pending'); // הממתינים ראשונים
+
+  const listed = (await as(U.custE, `select * from admin_set_business_status($1, 'listed', 'נבדק')`, [bizA]))[0];
+  assert.equal(listed.status, 'listed');
+  const [log] = await su(`select actor, data from audit_log where business_id = $1 and action = 'business_status'`, [bizA]);
+  assert.equal(log.actor, U.custE);
+  assert.deepEqual([log.data.from, log.data.to, log.data.reason], ['pending', 'listed', 'נבדק']);
+  await fails(as(U.custE, `select * from admin_set_business_status(gen_random_uuid(), 'listed')`), 'business_not_found');
+  await as(U.custE, `select * from admin_set_business_status($1, 'pending')`, [bizA]);
+
+  const [c] = await as(U.custE, `select * from admin_find_customer('054-0000003')`);
+  assert.equal(c.phone, '972540000003');
+  assert.equal(c.blocked_at, null);
+  assert.ok(c.bookings > 0);
+  assert.equal((await as(U.custE, `select * from admin_find_customer('050-1111111')`)).length, 0);
+});
+
 test('suspended business disappears', async () => {
   await su(`update businesses set status = 'suspended' where id = $1`, [bizB]);
   assert.ok(!(await as(null, `select id from businesses`)).some((r) => r.id === bizB));

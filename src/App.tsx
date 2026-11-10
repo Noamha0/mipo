@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import Placeholder from './features/Placeholder';
+import AdminPage from './features/admin/AdminPage';
 import BizRoot from './features/biz/BizRoot';
 import BookPage from './features/book/BookPage';
 import HomePage from './features/home/HomePage';
@@ -12,7 +12,7 @@ import ContactPage from './features/legal/ContactPage';
 import PrivacyPage from './features/legal/PrivacyPage';
 import TermsPage from './features/legal/TermsPage';
 
-// אתר הלקוחות (בית, חיפוש, דף עסק), צד העסק, ואדמין (אבן דרך 7).
+// אתר הלקוחות (בית, חיפוש, דף עסק), צד העסק, ומסך אדמין (0008).
 export default function App() {
   return (
     <BrowserRouter>
@@ -28,7 +28,7 @@ export default function App() {
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/accessibility" element={<AccessibilityPage />} />
         <Route path="/biz/*" element={<BizRoot />} />
-        <Route path="/admin/*" element={<Placeholder title="אדמין" note="אבן דרך 7" />} />
+        <Route path="/admin/*" element={<AdminPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
