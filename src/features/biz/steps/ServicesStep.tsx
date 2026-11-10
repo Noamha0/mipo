@@ -21,6 +21,7 @@ export default function ServicesStep({ business, onSaved, submitLabel, formId }:
   const [name, setName] = useState('');
   const [duration, setDuration] = useState(60);
   const [price, setPrice] = useState('');
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,9 +39,19 @@ export default function ServicesStep({ business, onSaved, submitLabel, formId }:
 
   const categoryName = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
 
+  const groupName = useMemo(() => new Map(groups.map((g) => [g.key, g.name])), [groups]);
+
+  // חיפוש חופשי בכל הקטלוג — במקום לעבור תחום אחרי תחום
+  const q = query.trim();
+  const matches = q
+    ? categories.filter((c) => c.name.includes(q) || groupName.get(c.group_key)?.includes(q)).slice(0, 8)
+    : [];
+
   function pickCategory(c: Category) {
+    setGroupKey(c.group_key);
     setCategoryId(c.id);
     setName(c.name);
+    setQuery('');
   }
 
   async function addService() {
@@ -119,6 +130,30 @@ export default function ServicesStep({ business, onSaved, submitLabel, formId }:
 
       <div className="card stack">
         <h3>{services.length ? 'הוספת שירות נוסף' : 'איזה שירותים את נותנת?'}</h3>
+        <label className="field">
+          הקלידי סוג שירות
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="למשל: גבות, עיסוי, אינסטלציה"
+            aria-describedby="svc-search-help"
+          />
+          <small id="svc-search-help">או בחרי תחום מהרשימה למטה.</small>
+        </label>
+        {q && (
+          matches.length ? (
+            <div className="chips" role="group" aria-label="תוצאות חיפוש">
+              {matches.map((c) => (
+                <button type="button" key={c.id} className="chip" onClick={() => pickCategory(c)}>
+                  {c.name} <span className="muted">· {groupName.get(c.group_key)}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="muted" role="status">לא מצאנו את "{q}". בחרי את התחום הקרוב ביותר, ואת השם שיופיע ללקוחות תכתבי בעצמך.</p>
+          )
+        )}
         <div className="chips" role="group" aria-label="תחום">
           {groups.map((g) => (
             <button
