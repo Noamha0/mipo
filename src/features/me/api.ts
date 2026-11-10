@@ -48,8 +48,25 @@ export interface Profile {
   score: number | null;
 }
 
+/** שורה מ-booking_alternatives (0006): מועד אחר באותו עסק, או עסק אחר באותו תחום */
+export interface Alternative {
+  kind: 'same' | 'other';
+  business_id: string;
+  business_name: string;
+  business_slug: string;
+  business_image: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  service_ids: string[];
+  services: string | null;
+  total_price: number | null;
+  slot_start: string;
+}
+
 export interface MeApi {
   bookings(): Promise<MyBooking[]>;
+  /** חלופות לתור שלא יתקיים בגלל העסק (נדחה / פקע / בוטל ע"י העסק) */
+  alternatives(bookingId: string): Promise<Alternative[]>;
   cancel(id: string): Promise<void>;
   dispute(id: string): Promise<void>;
   favorites(): Promise<Business[]>;
@@ -86,6 +103,8 @@ async function call<T>(p: PromiseLike<{ data: T; error: { message: string } | nu
 
 const supabaseMeApi: MeApi = {
   bookings: () => call(supabase.rpc('my_bookings')).then((d) => (d ?? []) as MyBooking[]),
+  alternatives: (bookingId) =>
+    call(supabase.rpc('booking_alternatives', { p_booking_id: bookingId })).then((d) => (d ?? []) as Alternative[]),
   cancel: (id) => call(supabase.rpc('cancel_booking', { p_booking_id: id })).then(() => undefined),
   dispute: (id) => call(supabase.rpc('dispute_no_show', { p_booking_id: id })).then(() => undefined),
   async favorites() {

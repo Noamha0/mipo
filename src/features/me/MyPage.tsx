@@ -11,7 +11,7 @@ import { useSession } from '../auth/useSession';
 import { timeLabel } from '../book/datetime';
 import { useNow, whenLabel } from '../biz/calendar/parts';
 import BottomNav from '../home/BottomNav';
-import { errorText, meApi, type AltPreference, type Channel, type Consents, type MyBooking, type Profile } from './api';
+import { errorText, meApi, type AltPreference, type Alternative, type Channel, type Consents, type MyBooking, type Profile } from './api';
 import FavButton from './FavButton';
 import { useFavorites } from './useFavorites';
 
@@ -93,7 +93,8 @@ function Bookings() {
   if (error) return <p className="notice warn" role="alert">{error}</p>;
   if (!list) return <p className="muted" role="status">טוענים…</p>;
 
-  const upcoming = list.filter((b) => ['pending', 'confirmed'].includes(b.status) && new Date(b.ends_at).getTime() > now).reverse();
+  // תור עתידי שהעסק דחה / שפקע מופיע בקרובים, עם החלופות שלו
+  const upcoming = list.filter((b) => ['pending', 'confirmed', ...ALT_STATUSES].includes(b.status) && new Date(b.ends_at).getTime() > now).reverse();
   const past = list.filter((b) => !upcoming.includes(b));
 
   if (!list.length) {
@@ -169,6 +170,7 @@ function BookingCard({ b, now, onChange }: { b: MyBooking; now: number; onChange
       {(b.status === 'rejected' || b.status === 'expired') && (
         <p className="muted">{b.status === 'rejected' ? 'העסק לא יכול בשעה הזו.' : 'העסק לא הספיק לענות, והשעה שוחררה.'} אפשר לבחור מועד אחר.</p>
       )}
+      {ALT_STATUSES.includes(b.status) && !ended && <Alternatives booking={b} />}
       {b.status === 'cancelled_by_customer' && b.late_cancel && <p className="muted">ביטול מאוחר, בתוך חלון הביטול של העסק.</p>}
 
       {b.status === 'no_show' && (b.can_dispute ? (
@@ -203,6 +205,57 @@ function BookingCard({ b, now, onChange }: { b: MyBooking; now: number; onChange
       )}
       {error && <p className="error" role="alert">{error}</p>}
     </article>
+  );
+}
+
+// תור שלא יתקיים בגלל העסק: מציעים מועדים אחרים כאן ועסקים אחרים באותו תחום,
+// לפי העדפת החלופות של הלקוחה (booking_alternatives, 0006)
+const ALT_STATUSES: MyBooking['status'][] = ['rejected', 'expired', 'cancelled_by_business'];
+
+function altHref(a: Alternative) {
+  const q = new URLSearchParams({ start: a.slot_start });
+  if (a.service_ids.length) q.set('services', a.service_ids.join(','));
+  return `/b/${a.business_slug}?${q}`;
+}
+
+function Alternatives({ booking }: { booking: MyBooking }) {
+  const [list, setList] = useState<Alternative[] | null>(null);
+  useEffect(() => { meApi.alternatives(booking.id).then(setList).catch(() => setList([])); }, [booking.id]);
+  if (!list?.length) return null;
+  const same = list.filter((a) => a.kind === 'same');
+  const other = list.filter((a) => a.kind === 'other');
+
+  return (
+    <div className="stack-sm alts">
+      {same.length > 0 && (
+        <>
+          <b>מועדים פנויים אחרים כאן</b>
+          <div className="chips">
+            {same.map((a) => (
+              <Link key={a.slot_start} className="chip" to={altHref(a)}>
+                {whenLabel(a.slot_start)} · <span className="ltr">{timeLabel(a.slot_start)}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+      {other.length > 0 && (
+        <>
+          <b>{same.length ? 'או עסק אחר באותו תחום' : 'עסקים אחרים באותו תחום'}</b>
+          {other.map((a) => (
+            <Link key={a.business_id} className="alt-biz" to={altHref(a)}>
+              <span className="my-thumb" style={a.business_image ? { backgroundImage: `url(${a.business_image})` } : undefined} aria-hidden="true" />
+              <span className="stack-sm" style={{ gap: 0, flex: 1, minWidth: 0 }}>
+                <b>{a.business_name}</b>
+                <span className="muted">{[a.neighborhood, a.city].filter(Boolean).join(', ')}{a.total_price != null && ` · ${formatPrice(a.total_price)}`}</span>
+                <span className="alt-when">פנוי {whenLabel(a.slot_start)} · <span className="ltr">{timeLabel(a.slot_start)}</span></span>
+              </span>
+              <Icon name="next" size={20} />
+            </Link>
+          ))}
+        </>
+      )}
+    </div>
   );
 }
 

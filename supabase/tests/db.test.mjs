@@ -242,6 +242,18 @@ test('unanswered requests expire and release the slot', async () => {
   assert.ok((await slots(null, bizA, [gel], D2)).includes(start.getTime()));
 });
 
+test('a stale request frees the slot at once, before the expiry job runs', async () => {
+  const start = await at(5, '15:00');
+  const stale = await book(U.custD, bizA, [gel], start);
+  assert.equal(stale.status, 'pending');
+  await su(`update bookings set approval_deadline = now() - interval '1 minute' where id = $1`, [stale.id]);
+
+  assert.ok((await slots(null, bizA, [gel], 5)).includes(start.getTime())); // מוצג שוב כפנוי
+  const taken = await book(U.custC, bizA, [gel], start); // ו-create_booking מפקיע את הישן לפני שתופס
+  assert.equal(taken.starts_at.getTime(), start.getTime());
+  assert.equal((await su(`select status from bookings where id = $1`, [stale.id]))[0].status, 'expired');
+});
+
 test('customer cancellation inside the window is late; others cannot cancel it', async () => {
   const bk = await book(U.custC, bizA, [gel], await at(D2, '15:00'));
   assert.equal(bk.status, 'pending'); // ל-C עדיין אין תור שהושלם
@@ -348,7 +360,8 @@ test('business calendar: names, phones and reliability for the team only', async
   await fails(cal(U.ownerA, await at(0, '00:00'), await at(70, '00:00')), 'invalid_range');
 
   // בקשה שעבר מועד האישור שלה מוצגת כפקועה, עוד לפני ה-cron
-  const [{ id }] = await su(`select id from bookings where business_id = $1 and status = 'pending' limit 1`, [bizA]);
+  const [{ id }] = await su(`select id from bookings where business_id = $1 and status = 'pending'
+    and starts_at >= $2 and starts_at < $3 limit 1`, [bizA, await at(D2, '00:00'), await at(D2 + 1, '00:00')]);
   await su(`update bookings set approval_deadline = now() - interval '1 minute' where id = $1`, [id]);
   const day = await cal(U.ownerA, await at(D2, '00:00'), await at(D2 + 1, '00:00'));
   assert.equal(day.find((r) => r.id === id).status, 'expired');
@@ -443,9 +456,53 @@ test('platform block: admins only, by phone, blocks booking everywhere', async (
   assert.equal((await as(U.custC, `select * from platform_admins`)).length, 0);
 });
 
+test('alternatives after a rejection: other times here, and nearby businesses in the same category', async () => {
+  const ownerF = '00000000-0000-0000-0000-00000000000f';
+  await su(`insert into auth.users (id, phone) values ($1, '972500000006')`, [ownerF]);
+  const [{ create_business: bizF }] = await as(ownerF, `select create_business('nails-f', 'לק של ף')`);
+  await as(ownerF, `insert into services (business_id, category_id, name, price, duration_min) values ($1, $2, 'לק ג''ל', 110, 60)`,
+    [bizF, await cat("לק ג'ל")]);
+  await su(`update businesses set status = 'listed', city = 'עפולה' where id = $1`, [bizF]);
+  await su(`update businesses set require_approval_all = true, city = 'עפולה' where id = $1`, [bizA]);
+
+  const start = await at(6, '10:00');
+  const bk = await book(U.custD, bizA, [gel], start);
+  assert.equal(bk.status, 'pending');
+  const alts = (uid = U.custD) => as(uid, `select * from booking_alternatives($1)`, [bk.id]);
+  assert.equal((await alts()).length, 0); // עוד ממתין — אין חלופות
+
+  await as(U.ownerA, `select * from decide_booking($1, false)`, [bk.id]);
+  const list = await alts();
+  const same = list.filter((a) => a.kind === 'same');
+  const other = list.filter((a) => a.kind === 'other');
+  assert.equal(same.length, 4);
+  assert.ok(same.every((a) => a.business_id === bizA && a.slot_start.getTime() !== start.getTime()));
+  assert.deepEqual(same[0].service_ids, [gel]);
+  assert.deepEqual(other.map((a) => a.business_id), [bizF]); // מספרת ב (תחום אחר) לא מוצעת
+  assert.equal(other[0].services, "לק ג'ל");
+  assert.equal(Number(other[0].total_price), 110);
+
+  // לפי העדפת הלקוחה
+  await as(U.custD, `update customers set alt_preference = 'same_business'`);
+  assert.ok((await alts()).every((a) => a.kind === 'same'));
+  await as(U.custD, `update customers set alt_preference = 'other_business'`);
+  assert.ok((await alts()).every((a) => a.kind === 'other'));
+  await as(U.custD, `update customers set alt_preference = 'both'`);
+
+  // עסק שחסם את הלקוחה לא מוצע; לקוחה אחרת לא רואה את החלופות
+  const dId = (await as(U.custD, `select id from customers`))[0].id;
+  await su(`insert into business_blocked_customers (business_id, customer_id) values ($1, $2)`, [bizF, dId]);
+  assert.equal((await alts()).filter((a) => a.kind === 'other').length, 0);
+  await su(`delete from business_blocked_customers where business_id = $1`, [bizF]);
+  await fails(alts(U.custC), 'not_allowed');
+  await fails(as(null, `select * from booking_alternatives($1)`, [bk.id]), 'permission denied');
+
+  await su(`update businesses set require_approval_all = false where id = $1`, [bizA]);
+});
+
 test('suspended business disappears', async () => {
   await su(`update businesses set status = 'suspended' where id = $1`, [bizB]);
-  assert.deepEqual((await as(null, `select id from businesses`)).map((r) => r.id), [bizA]);
+  assert.ok(!(await as(null, `select id from businesses`)).some((r) => r.id === bizB));
   assert.equal((await slots(null, bizB, [haircut], D2)).length, 0);
   await fails(book(U.custD, bizB, [haircut], await at(D2, '10:00')), 'business_not_found');
 });

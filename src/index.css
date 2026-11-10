@@ -858,6 +858,17 @@ fieldset.plain > legend { padding: 0; margin-bottom: 0.35rem; }
   background: var(--hero) center / cover;
 }
 .my-booking.faded .my-thumb { filter: grayscale(0.6); opacity: 0.8; }
+/* חלופות לתור שלא יתקיים (0006) */
+.alts { border-top: 1px solid var(--border); padding-top: 0.75rem; }
+.alt-biz {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.6rem; border: 1px solid var(--border); border-radius: 14px;
+  color: inherit; text-decoration: none;
+}
+.alt-biz:hover { border-color: var(--accent-bright); }
+.alt-biz .my-thumb { width: 44px; height: 44px; border-radius: 12px; }
+.alt-biz > svg { flex: none; color: var(--muted); }
+.alt-when { color: var(--success); font-weight: 600; font-size: 0.92rem; }
 .choice > span { display: flex; flex-direction: column; gap: 0.1rem; }
 .site-footer { padding: 2rem 16px 2.5rem; color: var(--muted); font-size: 0.88rem; text-align: center; }
 .site-footer p { margin-top: 0.75rem; }

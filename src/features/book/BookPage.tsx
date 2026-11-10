@@ -53,12 +53,15 @@ export default function BookPage() {
       setServices(list);
       setCategories((c.data ?? []) as Category[]);
       setHours((h.data ?? []) as OpenHour[]);
-      // ברירת מחדל: השירות הקצר ביותר — אותו שירות שלפיו חושבו השעות בכרטיס החיפוש
+      // שירותים מהלינק (חלופה לתור שלא אושר); אחרת השירות הקצר ביותר —
+      // אותו שירות שלפיו חושבו השעות בכרטיס החיפוש
+      const fromLink = (params.get('services') ?? '').split(',').filter((id) => list.some((s) => s.id === id));
       const shortest = [...list].sort((a, b) => a.duration_min - b.duration_min)[0];
-      if (shortest) setSelected(new Set([shortest.id]));
+      if (fromLink.length) setSelected(new Set(fromLink));
+      else if (shortest) setSelected(new Set([shortest.id]));
     });
     return () => { alive = false; };
-  }, [slug]);
+  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const chosen = useMemo(() => services.filter((s) => selected.has(s.id)), [services, selected]);
   const totalDuration = chosen.reduce((n, s) => n + s.duration_min, 0);
@@ -75,7 +78,8 @@ export default function BookPage() {
         if (!alive) return;
         const list = (data ?? []) as Slot[];
         setSlots(list);
-        setStart((cur) => (cur && list.some((s) => s.slot_start === cur) ? cur : null));
+        // השוואה לפי זמן ולא לפי מחרוזת: בלינק ‎…Z, מה-RPC ‎…+00:00
+        setStart((cur) => (cur ? list.find((s) => Date.parse(s.slot_start) === Date.parse(cur))?.slot_start ?? null : null));
         setDay((cur) => {
           const keys = new Set(list.map((s) => dayKey(s.slot_start)));
           if (cur && keys.has(cur)) return cur;

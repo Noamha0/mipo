@@ -3,7 +3,7 @@
 import { supabase } from '../../lib/supabase';
 import type { Business } from '../../lib/types';
 import { addDays, todayKey, zonedIso } from '../book/datetime';
-import type { Consents, MeApi, MyBooking, Profile } from './api';
+import type { Alternative, Consents, MeApi, MyBooking, Profile } from './api';
 
 let store: Promise<{ bookings: MyBooking[]; businesses: Business[]; favs: Set<string>; profile: Profile; consents: Consents }> | null = null;
 
@@ -33,6 +33,7 @@ async function seed() {
     make(4, -3, '09:00', 180, { status: 'completed', services: 'ניקיון בית', total_price: 360 }),
     make(2, -7, '19:00', 60, { status: 'no_show', services: 'יוגה', total_price: 80, can_dispute: true }),
     make(5, -10, '16:00', 45, { status: 'cancelled_by_customer', services: 'דוגווקר', total_price: 70, late_cancel: true }),
+    make(0, 3, '17:00', 60, { status: 'rejected', services: "לק ג'ל" }),
   ];
   return {
     bookings, businesses: biz, favs: new Set(biz.slice(0, 2).map((b) => b.id)),
@@ -50,6 +51,23 @@ const find = async (id: string) => {
 
 export const demoMeApi: MeApi = {
   bookings: async () => [...(await s()).bookings].sort((a, b) => b.starts_at.localeCompare(a.starts_at)),
+  async alternatives(id) {
+    const b = await find(id);
+    if (!['rejected', 'expired', 'cancelled_by_business'].includes(b.status)) return [];
+    const st = await s();
+    const t = todayKey();
+    const alt = (biz: Business | undefined, day: number, time: string, kind: Alternative['kind']): Alternative => ({
+      kind, business_id: biz?.id ?? '', business_name: biz?.name ?? 'עסק', business_slug: biz?.slug ?? '',
+      business_image: biz?.image_url ?? null, city: biz?.city ?? 'עפולה', neighborhood: biz?.neighborhood ?? null,
+      service_ids: [], services: b.services, total_price: b.total_price, slot_start: zonedIso(addDays(t, day), time),
+    });
+    const home = st.businesses.find((x) => x.id === b.business_id);
+    const others = st.businesses.filter((x) => x.id !== b.business_id).slice(0, 2);
+    return [
+      alt(home, 3, '18:30', 'same'), alt(home, 4, '10:00', 'same'), alt(home, 4, '12:15', 'same'), alt(home, 5, '09:00', 'same'),
+      ...others.map((x, i) => alt(x, 1 + i, '16:00', 'other')),
+    ];
+  },
   async cancel(id) {
     const b = await find(id);
     if (!b.can_cancel) throw new Error('not_cancellable');
