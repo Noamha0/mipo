@@ -31,11 +31,11 @@ export default function SearchPage() {
 
   const results = useMemo(() => {
     const term = q.trim();
-    return (listings ?? []).filter(({ business: b, groups, categoryNames }) => {
+    return (listings ?? []).filter(({ business: b, groups, categoryNames, serviceNames }) => {
       if (city && b.city !== city) return false;
       if (sector && !sector.groups.some((g) => groups.has(g))) return false;
       if (term) {
-        const hay = [b.name, b.city, b.neighborhood, b.description, ...categoryNames].filter(Boolean).join(' ');
+        const hay = [b.name, b.city, b.neighborhood, b.description, ...categoryNames, ...serviceNames].filter(Boolean).join(' ');
         if (!hay.includes(term)) return false;
       }
       return true;

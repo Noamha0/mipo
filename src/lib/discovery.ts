@@ -6,6 +6,8 @@ export interface Listing {
   business: Business;
   groups: Set<string>;
   categoryNames: string[];
+  /** השמות שהעסק נתן לשירותים — לחיפוש (חשוב במיוחד בשירותי "אחר") */
+  serviceNames: string[];
   minPrice: number | null;
   /** השירות הקצר ביותר — לפיו מחושבות המשבצות הקרובות בכרטיס */
   probeServiceId: string | null;
@@ -14,6 +16,7 @@ export interface Listing {
 interface SvcRow {
   business_id: string;
   id: string;
+  name: string;
   category_id: string;
   price: number | null;
   duration_min: number;
@@ -23,7 +26,7 @@ interface SvcRow {
 export async function loadListings(): Promise<{ listings: Listing[]; categories: Category[] }> {
   const [b, s, c] = await Promise.all([
     supabase.from('businesses').select('*').eq('status', 'listed').order('rating', { ascending: false, nullsFirst: false }),
-    supabase.from('services').select('business_id,id,category_id,price,duration_min').eq('active', true),
+    supabase.from('services').select('business_id,id,name,category_id,price,duration_min').eq('active', true),
     supabase.from('categories').select('*').order('sort_order'),
   ]);
   const categories = (c.data ?? []) as Category[];
@@ -44,6 +47,7 @@ export async function loadListings(): Promise<{ listings: Listing[]; categories:
       business,
       groups: new Set(cats.map((x) => x.group_key)),
       categoryNames: [...new Set(cats.filter((x) => !x.is_other).map((x) => x.name))], // "אחר" לא תגית
+      serviceNames: svcs.map((x) => x.name),
       minPrice: prices.length ? Math.min(...prices) : null,
       probeServiceId: shortest?.id ?? null,
     };
